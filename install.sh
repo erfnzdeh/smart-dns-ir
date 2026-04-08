@@ -106,12 +106,27 @@ if command -v docker &>/dev/null; then
         | grep -oP 'inet \K[\d.]+(?=/.*(docker|br-))' || true)
 
     if [[ -n "$BRIDGE_IPS" ]]; then
-        # Update /etc/docker/daemon.json with bridge IPs as DNS
         DNS_JSON=$(echo "$BRIDGE_IPS" | head -2 | awk '{printf "\"%s\", ", $1}' | sed 's/, $//')
-        if [[ -f /etc/docker/daemon.json ]]; then
-            cp /etc/docker/daemon.json /etc/docker/daemon.json.bak
+        DAEMON_JSON=/etc/docker/daemon.json
+        if [[ -f "$DAEMON_JSON" ]]; then
+            cp "$DAEMON_JSON" "${DAEMON_JSON}.bak.$(date +%Y%m%d%H%M%S)"
+            # Merge DNS into existing config, preserving all other settings
+            if command -v python3 &>/dev/null; then
+                python3 -c "
+import json, sys
+with open('$DAEMON_JSON') as f:
+    conf = json.load(f)
+conf['dns'] = [$(echo "$BRIDGE_IPS" | head -2 | awk '{printf "\"%s\", ", $1}' | sed 's/, $//')]
+with open('$DAEMON_JSON', 'w') as f:
+    json.dump(conf, f, indent=2)
+    f.write('\n')
+"
+            else
+                echo "{\"dns\": [$DNS_JSON]}" > "$DAEMON_JSON"
+            fi
+        else
+            echo "{\"dns\": [$DNS_JSON]}" > "$DAEMON_JSON"
         fi
-        echo "{\"dns\": [$DNS_JSON]}" > /etc/docker/daemon.json
         ok "Docker daemon.json updated with DNS: [$DNS_JSON]"
 
         # Open UFW for Docker subnets if UFW is active
