@@ -1,0 +1,204 @@
+#!/bin/bash
+# iran-dns: Full Installer
+# Sets up dnsmasq as a local caching DNS resolver, optimized for Iranian networks.
+# Handles systemd-resolved conflicts, IPv6, Docker integration, health checks.
+# Usage: sudo bash install.sh
+
+set -euo pipefail
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+step() { echo -e "\n${CYAN}[$1/7]${NC} $2"; }
+ok()   { echo -e "  ${GREEN}OK${NC} $1"; }
+warn() { echo -e "  ${YELLOW}!!${NC} $1"; }
+fail() { echo -e "  ${RED}FAIL${NC} $1"; exit 1; }
+
+if [[ "${EUID:-}" -ne 0 ]]; then
+    fail "Run as root: sudo bash install.sh"
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# ─────────────────────────────────────────────────────────────
+step 1 "Installing packages (dnsmasq, dnsutils)"
+# ─────────────────────────────────────────────────────────────
+if command -v dnsmasq &>/dev/null && command -v dig &>/dev/null; then
+    ok "dnsmasq and dnsutils already installed"
+else
+    apt-get update -qq
+    apt-get install -y -qq dnsmasq dnsutils
+    ok "installed"
+fi
+
+# ─────────────────────────────────────────────────────────────
+step 2 "Disabling IPv6 (reduces DNS noise on Iranian networks)"
+# ─────────────────────────────────────────────────────────────
+cat <<'EOF' > /etc/sysctl.d/99-disable-ipv6.conf
+net.ipv6.conf.all.disable_ipv6 = 1
+net.ipv6.conf.default.disable_ipv6 = 1
+net.ipv6.conf.lo.disable_ipv6 = 1
+EOF
+sysctl -p /etc/sysctl.d/99-disable-ipv6.conf &>/dev/null
+ok "IPv6 disabled"
+
+# ─────────────────────────────────────────────────────────────
+step 3 "Clearing port 53 conflicts"
+# ─────────────────────────────────────────────────────────────
+
+# Stop unbound if running (common conflict)
+if systemctl is-active --quiet unbound 2>/dev/null; then
+    systemctl stop unbound
+    systemctl disable unbound
+    ok "stopped unbound (was occupying port 53)"
+fi
+
+# Configure systemd-resolved to not use its stub listener
+mkdir -p /etc/systemd/resolved.conf.d
+cat <<'EOF' > /etc/systemd/resolved.conf.d/no-stub.conf
+[Resolve]
+DNS=127.0.0.1
+DNSStubListener=no
+EOF
+
+# Prevent dnsmasq from reading a looping resolv.conf
+sed -i 's/^#IGNORE_RESOLVCONF=yes/IGNORE_RESOLVCONF=yes/' /etc/default/dnsmasq 2>/dev/null \
+    || echo 'IGNORE_RESOLVCONF=yes' >> /etc/default/dnsmasq
+grep -q '^DNSMASQ_EXCEPT="lo"' /etc/default/dnsmasq 2>/dev/null \
+    || echo 'DNSMASQ_EXCEPT="lo"' >> /etc/default/dnsmasq
+
+systemctl restart systemd-resolved 2>/dev/null || true
+
+# Point system DNS at our local dnsmasq
+rm -f /etc/resolv.conf
+cat <<'EOF' > /etc/resolv.conf
+nameserver 127.0.0.1
+options edns0 trust-ad
+EOF
+ok "systemd-resolved reconfigured, resolv.conf updated"
+
+# ─────────────────────────────────────────────────────────────
+step 4 "Installing scripts"
+# ─────────────────────────────────────────────────────────────
+install -m 0755 "$SCRIPT_DIR/dns-updater.sh"      /usr/local/bin/iran-dns-update
+install -m 0755 "$SCRIPT_DIR/dns-health-check.sh"  /usr/local/bin/iran-dns-health-check
+install -m 0755 "$SCRIPT_DIR/benchmark.sh"         /usr/local/bin/iran-dns-benchmark
+ok "scripts installed to /usr/local/bin/"
+
+# ─────────────────────────────────────────────────────────────
+step 5 "Running initial benchmark + configuring dnsmasq"
+# ─────────────────────────────────────────────────────────────
+echo "  Benchmarking 60+ DNS servers in parallel (10-15 seconds)..."
+/usr/local/bin/iran-dns-update
+
+systemctl enable dnsmasq
+ok "dnsmasq enabled and configured"
+
+# ─────────────────────────────────────────────────────────────
+step 6 "Docker integration (if Docker is installed)"
+# ─────────────────────────────────────────────────────────────
+if command -v docker &>/dev/null; then
+    # Detect all Docker bridge IPs
+    BRIDGE_IPS=$(ip -4 addr show 2>/dev/null \
+        | grep -oP 'inet \K[\d.]+(?=/.*(docker|br-))' || true)
+
+    if [[ -n "$BRIDGE_IPS" ]]; then
+        # Update /etc/docker/daemon.json with bridge IPs as DNS
+        DNS_JSON=$(echo "$BRIDGE_IPS" | head -2 | awk '{printf "\"%s\", ", $1}' | sed 's/, $//')
+        if [[ -f /etc/docker/daemon.json ]]; then
+            cp /etc/docker/daemon.json /etc/docker/daemon.json.bak
+        fi
+        echo "{\"dns\": [$DNS_JSON]}" > /etc/docker/daemon.json
+        ok "Docker daemon.json updated with DNS: [$DNS_JSON]"
+
+        # Open UFW for Docker subnets if UFW is active
+        if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -q "Status: active"; then
+            for bridge_ip in $BRIDGE_IPS; do
+                subnet="${bridge_ip%.*}.0/16"
+                for proto in udp tcp; do
+                    if ! ufw status | grep -q "53.*$proto.*${bridge_ip%.*}"; then
+                        ufw allow from "$subnet" to any port 53 proto $proto >/dev/null 2>&1
+                    fi
+                done
+            done
+            ok "UFW rules added for Docker DNS traffic"
+        fi
+
+        warn "Restart Docker to apply: systemctl restart docker"
+    else
+        ok "Docker found but no bridge networks detected yet (will be configured on next iran-dns-update run)"
+    fi
+else
+    ok "Docker not installed, skipping"
+fi
+
+# ─────────────────────────────────────────────────────────────
+step 7 "Setting up automated maintenance"
+# ─────────────────────────────────────────────────────────────
+
+# dnsmasq auto-restart on crash
+mkdir -p /etc/systemd/system/dnsmasq.service.d
+cat <<'EOF' > /etc/systemd/system/dnsmasq.service.d/restart.conf
+[Service]
+Restart=on-failure
+RestartSec=5
+EOF
+
+# Health check systemd timer (every 5 min)
+cat <<'EOF' > /etc/systemd/system/iran-dns-health-check.service
+[Unit]
+Description=iran-dns health check
+After=network.target dnsmasq.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/iran-dns-health-check
+EOF
+
+cat <<'EOF' > /etc/systemd/system/iran-dns-health-check.timer
+[Unit]
+Description=Run iran-dns health check every 5 minutes
+
+[Timer]
+OnBootSec=60
+OnUnitActiveSec=300
+AccuracySec=30
+
+[Install]
+WantedBy=timers.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now iran-dns-health-check.timer
+
+# Daily cron for DNS re-benchmark
+(crontab -l 2>/dev/null | grep -v "iran-dns-update"; \
+ echo "0 3 * * * /usr/local/bin/iran-dns-update > /var/log/iran-dns-update.log 2>&1") | crontab -
+
+ok "health check timer (5 min), daily re-benchmark (03:00), dnsmasq auto-restart"
+
+# ─────────────────────────────────────────────────────────────
+echo ""
+echo -e "${GREEN}Installation complete!${NC}"
+echo ""
+echo "  What's running now:"
+echo "    dnsmasq          — local caching DNS on 127.0.0.1 (+ Docker bridges)"
+echo "    iran-dns-update  — daily re-benchmark of upstream servers (03:00)"
+echo "    iran-dns-health-check — health monitor every 5 min"
+echo ""
+echo "  Useful commands:"
+echo "    iran-dns-benchmark         — run a standalone DNS benchmark"
+echo "    iran-dns-update            — re-benchmark and update dnsmasq now"
+echo "    iran-dns-health-check      — run health check manually"
+echo "    journalctl -u dnsmasq      — dnsmasq logs"
+echo "    cat /var/log/iran-dns-health.log  — health check log"
+echo ""
+echo "  To add anti-censorship overrides for specific domains, edit:"
+echo "    /etc/dnsmasq.conf  (inside the MANUAL-BEGIN block)"
+echo ""
+echo "  Example override (route a censored domain through an uncensored resolver):"
+echo "    server=/example.com/194.225.152.10"
+echo ""
