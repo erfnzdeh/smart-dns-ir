@@ -56,6 +56,14 @@ if systemctl is-active --quiet unbound 2>/dev/null; then
     ok "stopped unbound (was occupying port 53)"
 fi
 
+# Fix Ubuntu's ubuntu-fan drop-in which sets bind-interfaces,
+# conflicting with the bind-dynamic we need for Docker bridge support.
+FAN_CONF=/etc/dnsmasq.d/ubuntu-fan
+if [[ -f "$FAN_CONF" ]] && grep -q 'bind-interfaces' "$FAN_CONF"; then
+    sed -i '/^bind-interfaces/d' "$FAN_CONF"
+    ok "removed bind-interfaces from ubuntu-fan drop-in (conflicts with bind-dynamic)"
+fi
+
 # Configure systemd-resolved to not use its stub listener
 mkdir -p /etc/systemd/resolved.conf.d
 cat <<'EOF' > /etc/systemd/resolved.conf.d/no-stub.conf
@@ -83,6 +91,22 @@ ok "systemd-resolved reconfigured, resolv.conf updated"
 # ─────────────────────────────────────────────────────────────
 step 4 "Installing scripts"
 # ─────────────────────────────────────────────────────────────
+
+# Clean up legacy scripts from setup_ubuntu_dns.sh if present
+LEGACY_CLEANED=false
+for old_script in /usr/local/bin/dns_auto_update.sh /usr/local/bin/dns_test2; do
+    if [[ -f "$old_script" ]]; then
+        rm -f "$old_script"
+        LEGACY_CLEANED=true
+    fi
+done
+# Clean up legacy cron entries
+if crontab -l 2>/dev/null | grep -q "dns_auto_update"; then
+    crontab -l 2>/dev/null | grep -v "dns_auto_update" | crontab -
+    LEGACY_CLEANED=true
+fi
+$LEGACY_CLEANED && ok "cleaned up legacy scripts from setup_ubuntu_dns.sh"
+
 install -m 0755 "$SCRIPT_DIR/dns-updater.sh"      /usr/local/bin/iran-dns-update
 install -m 0755 "$SCRIPT_DIR/dns-health-check.sh"  /usr/local/bin/iran-dns-health-check
 install -m 0755 "$SCRIPT_DIR/benchmark.sh"         /usr/local/bin/iran-dns-benchmark
