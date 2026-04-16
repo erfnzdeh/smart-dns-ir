@@ -27,8 +27,8 @@ DNS_SERVERS=(
 )
 
 DOMAINS=(
-    "google.com" "youtube.com" "github.com" "gitlab.com" "docker.com"
-    "developer.apple.com" "android.com" "epicgames.com" "oracle.com" "x.com"
+    "google.com" "github.com" "gitlab.com" "docker.com"
+    "developer.apple.com" "android.com" "epicgames.com" "oracle.com"
     "tgju.org" "aparat.com" "digikala.com" "varzesh3.com" "torob.com"
     "shaparak.ir" "sep.shaparak.ir"
     "digiato.com" "isna.ir" "irna.ir" "zoomit.ir" "zarebin.ir"
@@ -193,5 +193,19 @@ for ip in $TOP_TEN; do
     echo "server=$ip" >> "$CONF"
 done
 
-systemctl restart dnsmasq
+restart_dnsmasq() {
+    if systemctl cat dnsmasq.service &>/dev/null; then
+        systemctl restart dnsmasq
+    else
+        # No systemd unit — manage the process directly
+        if [[ -f /run/dnsmasq.pid ]] && kill -0 "$(cat /run/dnsmasq.pid)" 2>/dev/null; then
+            kill "$(cat /run/dnsmasq.pid)"
+            sleep 1
+        fi
+        pkill -x dnsmasq 2>/dev/null || true
+        /usr/sbin/dnsmasq -x /run/dnsmasq.pid
+    fi
+}
+
+restart_dnsmasq
 echo "dnsmasq restarted with ${LISTEN} and $(echo $TOP_TEN | wc -w | tr -d ' ') upstreams."

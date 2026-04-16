@@ -17,6 +17,19 @@ CONTAINER_OK=true
 
 log() { echo "$(date '+%Y-%m-%d %H:%M:%S') $1" >> "$LOG"; }
 
+restart_dnsmasq() {
+    if systemctl cat dnsmasq.service &>/dev/null; then
+        systemctl restart dnsmasq
+    else
+        if [[ -f /run/dnsmasq.pid ]] && kill -0 "$(cat /run/dnsmasq.pid)" 2>/dev/null; then
+            kill "$(cat /run/dnsmasq.pid)"
+            sleep 1
+        fi
+        pkill -x dnsmasq 2>/dev/null || true
+        /usr/sbin/dnsmasq -x /run/dnsmasq.pid
+    fi
+}
+
 # ---------- Test 1: Host DNS via dnsmasq ----------
 for domain in "${DOMAINS[@]}"; do
     result=$(dig @127.0.0.1 "$domain" A +short +time=3 +tries=1 2>/dev/null | head -1)
@@ -29,7 +42,7 @@ done
 if [[ $FAILURES -ge 2 ]]; then
     HOST_OK=false
     log "ACTION: restarting dnsmasq ($FAILURES/${#DOMAINS[@]} host lookups failed)"
-    systemctl restart dnsmasq
+    restart_dnsmasq
     sleep 2
     retest=$(dig @127.0.0.1 google.com A +short +time=3 +tries=1 2>/dev/null | head -1)
     if [[ -n "$retest" ]] && ! echo "$retest" | grep -qE '^10\.10\.'; then
@@ -64,7 +77,7 @@ if command -v docker &>/dev/null && docker ps --format '{{.Names}}' 2>/dev/null 
             for bridge_ip in $(ip -4 addr show 2>/dev/null | grep -oP 'inet \K[\d.]+(?=/.*(docker|br-))'); do
                 if ! ss -lnp sport = 53 | grep -q "$bridge_ip"; then
                     log "ACTION: dnsmasq not listening on $bridge_ip, restarting"
-                    systemctl restart dnsmasq
+                    restart_dnsmasq
                     sleep 2
                     break
                 fi

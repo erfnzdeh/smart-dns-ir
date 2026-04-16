@@ -23,6 +23,31 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+ensure_dnsmasq_service() {
+    if systemctl cat dnsmasq.service &>/dev/null; then
+        return 0
+    fi
+    cat <<'UNIT' > /etc/systemd/system/dnsmasq.service
+[Unit]
+Description=dnsmasq - A lightweight DHCP and caching DNS server
+After=network.target
+
+[Service]
+Type=forking
+ExecStartPre=/usr/sbin/dnsmasq --test
+ExecStart=/usr/sbin/dnsmasq -x /run/dnsmasq.pid
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/run/dnsmasq.pid
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+    systemctl daemon-reload
+    ok "created missing dnsmasq.service unit"
+}
+
 # ─────────────────────────────────────────────────────────────
 step 1 "Installing packages (dnsmasq, dnsutils)"
 # ─────────────────────────────────────────────────────────────
@@ -118,6 +143,7 @@ step 5 "Running initial benchmark + configuring dnsmasq"
 echo "  Benchmarking 60+ DNS servers in parallel (10-15 seconds)..."
 /usr/local/bin/smart-dns-ir-update
 
+ensure_dnsmasq_service
 systemctl enable dnsmasq
 ok "dnsmasq enabled and configured"
 

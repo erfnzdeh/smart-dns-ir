@@ -69,8 +69,8 @@ DNS_SERVERS=(
 
 DOMAINS=(
     # International / sanctioned
-    "google.com" "youtube.com" "github.com" "gitlab.com" "docker.com"
-    "developer.apple.com" "android.com" "epicgames.com" "oracle.com" "x.com"
+    "google.com" "github.com" "gitlab.com" "docker.com"
+    "developer.apple.com" "android.com" "epicgames.com" "oracle.com"
     # Iranian
     "tgju.org" "aparat.com" "digikala.com" "varzesh3.com" "torob.com"
     "shaparak.ir" "sep.shaparak.ir"
