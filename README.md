@@ -123,6 +123,8 @@ services:
       - 172.18.0.1
 ```
 
+> **Warning: never use external DNS servers (e.g. `78.157.42.100`, `217.218.127.127`) in `docker-compose.yml` `dns:` directives.** This bypasses dnsmasq entirely — containers will talk directly to those upstream servers, skipping the local cache, anti-censorship overrides (`bogus-nxdomain`, `server=/domain/...`), and health-check auto-recovery. If any of those upstreams censor a domain, your containers will silently fail to resolve it even though `dig @127.0.0.1` on the host works fine. Always point container DNS at the dnsmasq bridge IP (e.g. `172.18.0.1`).
+
 **4. Open the firewall (this is the most commonly missed step):**
 
 ```bash
