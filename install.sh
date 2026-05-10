@@ -249,8 +249,10 @@ EOF
 systemctl daemon-reload
 systemctl enable --now smart-dns-ir-health-check.timer
 
-# Daily cron for DNS re-benchmark
-(crontab -l 2>/dev/null | grep -v "smart-dns-ir-update"; \
+# Daily cron for DNS re-benchmark.
+# `|| true` guards against grep returning 1 (no existing crontab / no match),
+# which would otherwise abort the script under `set -euo pipefail`.
+(crontab -l 2>/dev/null | grep -v "smart-dns-ir-update" || true; \
  echo "0 3 * * * /usr/local/bin/smart-dns-ir-update > /var/log/smart-dns-ir-update.log 2>&1") | crontab -
 
 ok "health check timer (5 min), daily re-benchmark (03:00), dnsmasq auto-restart"
