@@ -1,5 +1,7 @@
 # smart-dns-ir
 
+![license](https://img.shields.io/github/license/erfnzdeh/smart-dns-ir) ![shell](https://img.shields.io/badge/shell-bash-4EAA25?logo=gnubash&logoColor=white) ![servers](https://img.shields.io/badge/servers-60+-blue) ![status](https://img.shields.io/badge/status-self--healing-brightgreen)
+
 A self-healing DNS optimizer for servers in Iran.
 
 Benchmarks 60+ DNS servers, installs a local caching resolver (`dnsmasq`), and keeps it running with automated health checks — so your server always has fast, uncensored DNS even when upstream providers get throttled, filtered, or go down.
