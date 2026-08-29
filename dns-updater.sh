@@ -91,13 +91,58 @@ echo "==========================================================================
 echo " Top 15 DNS Servers (by domain support, then latency):"
 echo "================================================================================"
 
+provider_of() {
+    case $1 in
+        "8.8.8.8"|"8.8.4.4") echo "Google" ;;
+        "1.1.1.1"|"1.0.0.1") echo "Cloudflare" ;;
+        "178.22.122.101"|"185.51.200.1") echo "Shecan Pro" ;;
+        "178.22.122.100"|"185.51.200.2") echo "Shecan Normal" ;;
+        "172.29.2.100"|"172.29.0.100") echo "HostIran" ;;
+        "10.202.10.202"|"10.202.10.102") echo "403.online" ;;
+        "78.157.42.100"|"78.157.42.101") echo "Electro" ;;
+        "10.202.10.10"|"10.202.10.11") echo "Radar Game" ;;
+        "185.55.226.26"|"185.55.225.25") echo "Begzar" ;;
+        "77.77.77.77"|"77.77.77.78") echo "3dns" ;;
+        "85.15.1.14"|"85.15.1.15"|"94.182.39."*) echo "Shatel" ;;
+        "217.218.155.155"|"217.218.127.127"|"2.189.44.44"|"2.188.21."*) echo "TIC" ;;
+        "5.200.200.200") echo "Mokhaberat" ;;
+        "217.219.72.194"|"2.185.239."*) echo "Mokhaberat AZ" ;;
+        "185.98.113.113"|"185.98.114.114") echo "Asiatech" ;;
+        "95.38.15.205") echo "Fanava" ;;
+        "194.225.152.12"|"194.225.152."*) echo "IPM" ;;
+        "193.151.128.100"|"193.151.128.200") echo "Derak Cloud" ;;
+        "81.91.144.116") echo "Faradadeh" ;;
+        "185.51.200.4") echo "Amirkabir" ;;
+        "193.189.123.2"|"193.189.122.83"|"194.225.70.83") echo "IRNIC" ;;
+        "5.202.100.100"|"5.202.100.101") echo "Pishgaman" ;;
+        "185.243.50.1"|"185.243.50.30") echo "Toloe Rayaneh" ;;
+        "193.186.32.32") echo "Bertina" ;;
+        "208.67.220.200"|"208.67.222.222") echo "OpenDNS" ;;
+        "74.82.42.42") echo "HE" ;;
+        "91.239.100.100"|"89.223.43.71") echo "Rightel" ;;
+        *) echo "Unknown" ;;
+    esac
+}
+
 rank=1
 TOP_TEN=""
+RANKED_TEN=""
 DOMESTIC_FALLBACK=""
+declare -A PROVIDER_PICKS
 
 while read -r dns score latency failed_list; do
+    provider=$(provider_of "$dns")
+
     if [[ $rank -le 10 ]]; then
+        RANKED_TEN+="$dns "
+    fi
+
+    # Cap at 2 IPs per provider so one provider going bad overnight
+    # can't take out most of the upstream set at once.
+    if [[ $(wc -w <<< "$TOP_TEN") -lt 10 && $score -gt 0 ]] \
+        && [[ ${PROVIDER_PICKS[$provider]:-0} -lt 2 ]]; then
         TOP_TEN+="$dns "
+        PROVIDER_PICKS[$provider]=$(( ${PROVIDER_PICKS[$provider]:-0} + 1 ))
     fi
 
     if [[ $(wc -w <<< "$DOMESTIC_FALLBACK") -lt 2 && $score -gt 0 ]] \
@@ -106,36 +151,7 @@ while read -r dns score latency failed_list; do
     fi
 
     if [[ $rank -le 15 ]]; then
-        case $dns in
-            "8.8.8.8"|"8.8.4.4") name="Google" ;;
-            "1.1.1.1"|"1.0.0.1") name="Cloudflare" ;;
-            "178.22.122.101"|"185.51.200.1") name="Shecan Pro" ;;
-            "178.22.122.100"|"185.51.200.2") name="Shecan Normal" ;;
-            "172.29.2.100"|"172.29.0.100") name="HostIran" ;;
-            "10.202.10.202"|"10.202.10.102") name="403.online" ;;
-            "78.157.42.100"|"78.157.42.101") name="Electro" ;;
-            "10.202.10.10"|"10.202.10.11") name="Radar Game" ;;
-            "185.55.226.26"|"185.55.225.25") name="Begzar" ;;
-            "77.77.77.77"|"77.77.77.78") name="3dns" ;;
-            "85.15.1.14"|"85.15.1.15"|"94.182.39."*) name="Shatel" ;;
-            "217.218.155.155"|"217.218.127.127"|"2.189.44.44"|"2.188.21."*) name="TIC" ;;
-            "5.200.200.200") name="Mokhaberat" ;;
-            "217.219.72.194"|"2.185.239."*) name="Mokhaberat AZ" ;;
-            "185.98.113.113"|"185.98.114.114") name="Asiatech" ;;
-            "95.38.15.205") name="Fanava" ;;
-            "194.225.152.12"|"194.225.152."*) name="IPM" ;;
-            "193.151.128.100"|"193.151.128.200") name="Derak Cloud" ;;
-            "81.91.144.116") name="Faradadeh" ;;
-            "185.51.200.4") name="Amirkabir" ;;
-            "193.189.123.2"|"193.189.122.83"|"194.225.70.83") name="IRNIC" ;;
-            "5.202.100.100"|"5.202.100.101") name="Pishgaman" ;;
-            "185.243.50.1"|"185.243.50.30") name="Toloe Rayaneh" ;;
-            "193.186.32.32") name="Bertina" ;;
-            "208.67.220.200"|"208.67.222.222") name="OpenDNS" ;;
-            "74.82.42.42") name="HE" ;;
-            "91.239.100.100"|"89.223.43.71") name="Rightel" ;;
-            *) name="Unknown" ;;
-        esac
+        name="$provider"
 
         [[ "$latency" == "9999" ]] && lat_display="N/A" || lat_display="${latency} ms"
 
@@ -151,6 +167,12 @@ while read -r dns score latency failed_list; do
     fi
     ((rank++))
 done < <(for dns in "${!results[@]}"; do echo "$dns ${results[$dns]}"; done | sort -k2,2rn -k3,3n)
+
+# Nothing resolved during the benchmark (e.g. total outage at run time):
+# keep the best-ranked servers anyway rather than writing an empty upstream list.
+if [[ -z "$TOP_TEN" ]]; then
+    TOP_TEN="$RANKED_TEN"
+fi
 
 echo "================================================================================"
 
