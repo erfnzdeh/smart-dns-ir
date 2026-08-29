@@ -17,6 +17,8 @@ DNS_SERVERS=(
     # Shecan
     "178.22.122.100" "185.51.200.2"               # Normal
     "178.22.122.101" "185.51.200.1"               # Pro
+    # HostIran (anti-sanction, reachable only from inside Iran)
+    "172.29.2.100" "172.29.0.100"
     # 403.online / Respina
     "10.202.10.202" "10.202.10.102"
     # Electro
@@ -146,6 +148,7 @@ done | sort -k2,2rn -k3,3n | while read -r dns score latency failed_list; do
         "1.1.1.1"|"1.0.0.1") name="Cloudflare" ;;
         "178.22.122.101"|"185.51.200.1") name="Shecan Pro" ;;
         "178.22.122.100"|"185.51.200.2") name="Shecan Normal" ;;
+        "172.29.2.100"|"172.29.0.100") name="HostIran" ;;
         "10.202.10.202"|"10.202.10.102") name="403.online" ;;
         "78.157.42.100"|"78.157.42.101") name="Electro" ;;
         "10.202.10.10"|"10.202.10.11") name="Radar Game" ;;
