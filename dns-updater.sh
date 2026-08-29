@@ -41,6 +41,10 @@ DOMAINS=(
 CONF=/etc/dnsmasq.conf
 TMP_DIR=$(mktemp -d)
 
+# Upstreams hosted outside Iran — unreachable during international blackouts,
+# so they can't serve as the domestic .ir fallback.
+GLOBAL_SERVERS=" 8.8.8.8 8.8.4.4 1.1.1.1 1.0.0.1 208.67.220.200 208.67.222.222 74.82.42.42 "
+
 test_dns() {
     local dns=$1
     local success_count=0
@@ -89,10 +93,16 @@ echo "==========================================================================
 
 rank=1
 TOP_TEN=""
+DOMESTIC_FALLBACK=""
 
 while read -r dns score latency failed_list; do
     if [[ $rank -le 10 ]]; then
         TOP_TEN+="$dns "
+    fi
+
+    if [[ $(wc -w <<< "$DOMESTIC_FALLBACK") -lt 2 && $score -gt 0 ]] \
+        && [[ "$GLOBAL_SERVERS" != *" $dns "* ]]; then
+        DOMESTIC_FALLBACK+="$dns "
     fi
 
     if [[ $rank -le 15 ]]; then
@@ -197,6 +207,17 @@ CONFIG_EOF
 for ip in $TOP_TEN; do
     echo "server=$ip" >> "$CONF"
 done
+
+if [[ -n "$DOMESTIC_FALLBACK" ]]; then
+    {
+        echo ""
+        echo "# Domestic fallback: route .ir through resolvers inside Iran so Iranian"
+        echo "# services keep resolving even during a full international blackout."
+        for ip in $DOMESTIC_FALLBACK; do
+            echo "server=/ir/$ip"
+        done
+    } >> "$CONF"
+fi
 
 restart_dnsmasq() {
     if systemctl cat dnsmasq.service &>/dev/null; then
