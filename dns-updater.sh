@@ -179,6 +179,9 @@ bind-dynamic
 no-resolv
 no-poll
 filter-AAAA
+# Race every upstream in parallel and take the first valid answer,
+# so one upstream dying doesn't stall resolution until the next health check.
+all-servers
 
 cache-size=10000
 min-cache-ttl=604800
