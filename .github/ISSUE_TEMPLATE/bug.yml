@@ -1,0 +1,49 @@
+name: Bug report
+description: The installer, updater, health check, or doctor did something wrong
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A security problem (root write where it should not, injection, a timer running attacker input) is not an issue.
+        Use a [private advisory](https://github.com/erfnzdeh/smart-dns-ir/security/advisories/new).
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where
+      options:
+        - install.sh
+        - benchmark.sh / smart-dns-ir-benchmark
+        - smart-dns-ir-update
+        - smart-dns-ir-health-check
+        - smart-dns-ir-doctor
+        - bootstrap-apt.sh / uninstall.sh
+        - Docs
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened
+      placeholder: Host cannot resolve. Containers bypass dnsmasq. Updater ate the MANUAL block. …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to see it
+      description: Distro, whether Docker is installed, and the command. Paste `dig @127.0.0.1 example.com` if DNS is the issue. No full dnsmasq.conf from a production host.
+    validations:
+      required: true
+  - type: textarea
+    id: extras
+    attributes:
+      label: Anything else
+      description: Ubuntu version, UFW on or off, compose `dns:` lines if containers are involved.

@@ -1,0 +1,33 @@
+name: Feature request
+description: A resolver, a test domain, or a behaviour that should work differently
+labels: [enhancement]
+body:
+  - type: textarea
+    id: want
+    attributes:
+      label: What you want
+      placeholder: Another provider in the benchmark list. A flag to skip UFW. …
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: The gap, not the implementation. What do you do today that this would replace?
+    validations:
+      required: true
+  - type: dropdown
+    id: root
+    attributes:
+      label: Does this change what the installer writes as root?
+      options:
+        - No
+        - Yes, and here is why that is still safe (explain below)
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: extras
+    attributes:
+      label: Anything else
+      description: Provider IPs, a domain that is newly censored, or a compose setup that surprises the doctor.

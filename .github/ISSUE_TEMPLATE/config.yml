@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security report
+    url: https://github.com/erfnzdeh/smart-dns-ir/security/advisories/new
+    about: Privilege escalation, unexpected root writes, or injection in the installer. Private, not an issue.
+  - name: Troubleshooting
+    url: https://github.com/erfnzdeh/smart-dns-ir/blob/main/README.md#troubleshooting
+    about: Host DNS down, containers resolve but the host does not, or a single domain is censored. Read this first.

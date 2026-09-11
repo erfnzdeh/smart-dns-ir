@@ -1,6 +1,6 @@
 # smart-dns-ir
 
-![license](https://img.shields.io/github/license/erfnzdeh/smart-dns-ir) ![shell](https://img.shields.io/badge/shell-bash-4EAA25?logo=gnubash&logoColor=white) ![servers](https://img.shields.io/badge/servers-60+-blue) ![status](https://img.shields.io/badge/status-self--healing-brightgreen)
+![license](https://img.shields.io/github/license/erfnzdeh/smart-dns-ir) ![ci](https://github.com/erfnzdeh/smart-dns-ir/actions/workflows/ci.yml/badge.svg) ![shell](https://img.shields.io/badge/shell-bash-4EAA25?logo=gnubash&logoColor=white) ![servers](https://img.shields.io/badge/servers-60+-blue) ![status](https://img.shields.io/badge/status-self--healing-brightgreen)
 
 A self-healing DNS optimizer for servers in Iran.
 
@@ -308,6 +308,12 @@ Removes scripts, systemd units, cron jobs, and state files. Does **not** remove 
 ## Test Domains
 
 32 domains covering international/sanctioned services (Google, YouTube, GitHub, Docker, X) and Iranian services (Digikala, Aparat, Shaparak, Bale, Eitaa, Quera) to measure both reach and censorship.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Bugs and extra resolvers go in
+[issues](https://github.com/erfnzdeh/smart-dns-ir/issues). Security
+reports are private: see [SECURITY.md](SECURITY.md).
 
 ## License
 
