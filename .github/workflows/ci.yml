@@ -16,7 +16,7 @@ jobs:
   scripts:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: bash -n
         run: |
           bash -n install.sh uninstall.sh benchmark.sh dns-updater.sh \
